@@ -22,12 +22,12 @@ library(tidyverse)
 ```{r}
 #oprn model 
 ss_species_params <-   read.csv(
-  "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_pars_2011_241212_2.csv")
+  "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/pars2025/ss_mizer_2011_pars_250813.csv")
 
-ss_gear_params<-read.csv("/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_gear_2011_241212.csv")
+ss_gear_params<-read.csv("/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/pars2025/gear_params2011_allfisheries_250813.csv")
 
 ss_interaction <-   read.csv(
-    "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_mizer_interaction_241212.csv", row.names=1)
+    "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/pars2025/interaction_params121216_upd_addotherfish.csv", row.names=1)
 
 
 
@@ -112,11 +112,11 @@ tuned_model@species_params$biomass_model[5]
 
 
 ```{r}
-saveParams(tuned_model, "ss_mizerout2011_pars_241212_fishing1.rds")
+saveParams(tuned_model, "ss_mizerout2011_pars_fishing1.rds")
 dfnew<-(species_params(tuned_model))
 
-write.csv(dfnew, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_mizerout2011_pars_241212_fishing1.csv")
-saveParams(tuned_model, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_mizerout2011_pars_241212_fishing1.rds")
+write.csv(dfnew, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_May25/pars_241212/ss_mizerout2011_pars_fishing1.csv")
+saveParams(tuned_model, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_May25/pars_241212/ss_mizerout2011_pars_fishing1.rds")
 ```
 
 ## TUNE RESILIENCE - FISHING
