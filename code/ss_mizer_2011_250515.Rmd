@@ -1,0 +1,2114 @@
+---
+title: "Orca_tuneparams_May24"
+author: "Viv Tulloch"
+date: "2024-05-21"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+https://course.mizer.sizespectrum.org/build/find-species-parameters.html
+
+## Create a mizer model
+
+```{r message=FALSE}
+remotes::install_github("sizespectrum/mizerExperimental")
+library(mizerExperimental)
+remotes::install_github("sizespectrum/mizerMR")
+library(mizerMR)
+library(tidyverse)
+#rm(cur_model_steady)
+```
+
+
+```{r}
+#oprn model 
+ss_species_params <-   read.csv(
+  "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_pars_2011_241212_2.csv")
+
+ss_gear_params<-read.csv("/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_gear_2011_241212.csv")
+
+## interaction matrix set to 0,1 - need to modify this based on prey preferences
+ss_interaction <-   read.csv(
+    "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_mizer_interaction_241212.csv", row.names=1)
+
+#read in time-averaged  catches 
+#params<- cur_model
+#cdat<-read.csv(
+#  "C:/Users/vtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Puget_Sound/spp_Aug2023_CM/05_fisheries/ts_fishe#ries_rev_avyield_addtrans.csv") ### units: tonnes
+
+
+```
+
+## setting fishing effort to 1, so that catchability = fishing mortality
+
+```{r}
+cur_model <- newMultispeciesParams(species_params = ss_species_params, 
+                                   interaction = ss_interaction, 
+                                   gear_params = ss_gear_params,
+                                  initial_effort = 1,
+                                   lambda = 2.05, n=0.75,  p = 0.75, w_pp_cutoff = 50, kappa = 2372072334750
+                                   )
+```
+
+**Step 2: Project to steady state**
+
+```{r}
+#rm(cur_model_steady)
+cur_model_steady <- steady(cur_model)
+species_params(cur_model_steady)
+plotlySpectra(cur_model_steady, power = 2)
+```
+
+**Step 3: Calibrate the scale**
+**Step 4: Rescale species spectra**
+
+```{r}
+cur_model <- calibrateBiomass(cur_model_steady)
+plotBiomassVsSpecies(cur_model)
+cur_model <- matchBiomasses(cur_model)
+plotBiomassVsSpecies(cur_model)
+species_params(cur_model)
+```
+
+
+Step 5: Rinse and repeat
+
+Rescaling the spectra of the individual species has not created another steady state. All species now experience a new prey distribution and a new predator distribution and so their growth and death rates have changed, which requires us to run the dynamics again to find the new steady state. So we essentially go back to step 2 and project to steady state:
+
+```{r}
+cur_model <- cur_model |>
+     matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+   matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+```
+
+
+
+```{r}
+cur_model <- cur_model |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+ matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+```
+
+```{r}
+#species_params(ss_mizerout1979_pars_240521_fishing075)
+```
+
+
+```{r}
+#plotBiomassVsSpecies(cur_model)
+plotSpectra(cur_model, power = 2            )
+
+```
+
+plot works? YAAAAAAAAAAAAA
+
+```{r}
+
+plotDiet(cur_model)#, species = "California_sea_lions")
+plotGrowthCurves(cur_model, species_panel = TRUE)
+plotlyFeedingLevel(cur_model)
+getReproductionLevel(cur_model)
+species_params(cur_model)
+```
+
+
+tuneParams(cur_model)
+
+
+```{r}
+tuned_model <- readRDS("~/Downloads/tuned_params (51).rds")
+tuneParams(tuned_model)
+
+```
+
+```{r}
+tuned_model <- readRDS("~/Downloads/tuned_params (59).rds")
+dft1<-species_params(tuned_model)
+species_params(tuned_model)
+getReproductionLevel(tuned_model)
+plotDiet(tuned_model)#, species = "California_sea_lions")
+plotGrowthCurves(tuned_model, species_panel = TRUE)
+plotlyFeedingLevel(tuned_model)
+
+```
+
+
+```{r}
+tuned_model@resource_params$kappa
+tuned_model@species_params$biomass_model[5]
+```
+
+```{r}
+ sim1 <- project(tuned_model, effort = 1, t_max = 30, t_save=3)
+ plot(sim1)
+ 
+ animateSpectra(sim1, total = TRUE, power = 1)#, 
+               #ylim = c(1e-8, NA), wlim = c(1e-3, NA))
+ plotlyBiomassRelative(sim1)
+
+```
+tuneParams(tuned_model)
+
+
+
+
+```{r}
+saveParams(tuned_model, "ss_mizerout2011_pars_241212_fishing1.rds")
+dfnew<-(species_params(tuned_model))
+
+write.csv(dfnew, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_mizerout2011_pars_241212_fishing1.csv")
+saveParams(tuned_model, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_mizerout2011_pars_241212_fishing1.rds")
+```
+
+
+
+
+
+
+## TUNE RESILIENCE 1
+```{r}
+cm1<-tuned_params3
+cm1 <- setBevertonHolt(cm1, erepro = 0.7)
+species_params(cm1) |> select(erepro, R_max)
+getRDI(cm1) / getRDD(cm1)
+
+plotSpectra(cm1, power = 2            )
+```
+
+Setting generic gear selectivity
+If you have system specific data on how changes in fishing under system specific gear parameters change species biomasses, you should use these system specific details. We do not have such data for Curonian Lagoon, so we will explore species responses in general. For that purpose, for this exploration of the resilience of species, we set the gear parameters in such a way that all species are fished similarly.
+
+Our current gear parameters are set for a specific commercial fishery, which selects some species but does not catch smallfish and almost no ruffe. For smaller fish they target only adults and for largest fish they also target juveniles. Thus the fishing mortality this gear imposes on the different species is not suited to assess resilience equally for all species.
+
+To tune the resilience of each species to extra mortality we will set catchability of all species to 1, so that effort values directly reflect fishing mortality. We will also set gear 50% selectivity to half the maturation length of each species and 25% selection to half the 25% maturation length.
+
+Gear selectivity parameters are defined by length, so we will first convert w_mat and w_mat25 to length values.
+
+
+```{r}
+weight_to_length <- function(w, cm1) {
+    a <- species_params(cm1)$a
+    b <- species_params(cm1)$b
+    (w / a) ^ (1 / b)
+}
+
+l_mat = weight_to_length(species_params(cm1)$w_mat, cm1)
+l_25mat = weight_to_length(species_params(cm1)$w_mat25, cm1)
+
+```
+
+
+We assign the model that uses these new gear parameters in a new variable cm_generic_gear so that we can keep the old model around.
+```{r}
+# We start with the current gear parameters
+gp <- gear_params(cm1)
+# and update values in l50 and l25 columns
+gp$l50 <- l_mat / 2
+gp$l25 <- l_25mat / 2
+# and set all catchability to 1
+gp$catchability <- 1
+
+
+cm1_generic_gear <- cm1
+# Set new gear parameters for the new model 
+gear_params(cm1_generic_gear) <- gp
+plotFMort(cm1_generic_gear)
+```
+As always after having changed model parameters, we need to bring the model to steady state again.
+```{r}
+cm1_generic_gear <- steady(cm1_generic_gear)
+```
+
+
+```{r}
+#cm1_generic_gear <-  cm1_generic_gear |> 
+#  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+#   matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+```
+
+
+Exploring yield curves
+To measure the resilience of our species to fishing, we will change the fishing mortality for one species at a time and check how their yields, spawning-stock biomasses (SSB) and reproduction rate (RDD) change in response. We keep the fishing mortality for the other species fixed. For our selected species we run through a range of fishing mortalities between 0 and a maximum. For each fishing mortality we run the projection until the system has settled down to a new steady state. Then we calculates the yield, the spawning stock biomass SSB and the reproduction rate RDD in that steady state. After doing that for all fishing mortalities we can plot all the results in a graph. The plotYieldCurve() function does all that for us. Here we plot the yield curve for smallfish.
+```{r}
+# First we save current reproduction level into a vector 
+rep_level <- getReproductionLevel(cm1_generic_gear)
+```
+
+Pacific_Herring	0.55
+Small_Planktivorous_Fish	0.493
+Chinook_Hatch_Adult	0.78
+Chinook_Wild_Adult	0.78
+Coho_Hatch_Adult	0.5-0.69
+Coho_Wild_Adult	0.5-0.69
+Chum_Adult	
+Sockeye_Adult	
+Chinook_Hatch_Resident	0.78
+Chinook_Wild_Resident	0.78
+Coho_Hatch_Resident	0.5-0.69
+Coho_Wild_Resident	0.5-0.69
+Hake	0.4-0.45
+Lingcod	0.45
+Rockfish	0.5
+Other_fish	0.7
+Halibut	0.4
+
+
+```{r}
+library(mizerMR)
+plotYieldVsF(cm1_generic_gear, species = "Pacific_Herring", F_max = 2)
+getReproductionLevel(cm1_generic_gear)["Pacific_Herring"]
+```
+FMSY for herring is 0.5 - should be between 0.2 and 1
+
+We do not know how much we need to reduce the reproduction level to get a sufficiently low F MSY
+ . We just try some values. Let’s try 0.3.
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Pacific_Herring"] <- 0.5
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Pacific_Herring", F_max = 1)
+```
+next species
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Invertebrates", F_max = 2)
+getReproductionLevel(cm1_generic_gear)["Invertebrates"]
+```
+
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Invertebrates"] <- 0.7
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Invertebrates", F_max = 1)
+```
+
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Small_Planktivorous_Fish", F_max = 2)
+getReproductionLevel(cm1_generic_gear)["Small_Planktivorous_Fish"]
+
+```
+too high - also reduce
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Small_Planktivorous_Fish"] <- 0.5
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Small_Planktivorous_Fish", F_max = 1)
+```
+
+
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Hake", F_max = 1)
+```
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Hake"] <- 0.26
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Hake", F_max = 1)
+```
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Lingcod", F_max = 1)
+```
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Lingcod"] <- 0.6
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Lingcod", F_max = 1)
+```
+
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Rockfish", F_max = 1)
+```
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Rockfish"] <- 0.3
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Rockfish", F_max = 1)
+```
+
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Halibut", F_max = 1)
+```
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Halibut"] <- 0.35
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Halibut", F_max = 1)
+```
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Chinook_Hatch_Adult", F_max = 1)
+```
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Chinook_Hatch_Adult"] <- 0.75
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Chinook_Hatch_Adult", F_max = 1)
+```
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Coho_Hatch_Adult", F_max = 1)
+```
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Coho_Hatch_Adult"] <- 0.78
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Coho_Hatch_Adult", F_max = 1)
+```
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Coho_Wild_Adult", F_max = 1)
+```
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Coho_Wild_Adult"] <- 0.78
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Coho_Wild_Adult", F_max = 1)
+```
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Chinook_Hatch_Resident", F_max = 1)
+rep_level["Chinook_Hatch_Resident"]
+```
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Chinook_Hatch_Resident"] <- 0.78
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Chinook_Hatch_Resident", F_max = 1)
+```
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Chinook_Wild_Resident", F_max = 1)
+rep_level["Chinook_Wild_Resident"]
+```
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Chinook_Wild_Resident"] <- 0.78
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Chinook_Wild_Resident", F_max = 1)
+```
+
+```{r}
+plotYieldVsF(cm1_generic_gear, species = "Other_fish", F_max = 1)
+rep_level["Other_fish"]
+```
+
+```{r}
+
+# then we replace our species' reproduction level with a new value 
+rep_level["Other_fish"] <-   0.9
+# and asign it back to the model 
+cm1_generic_gear <- setBevertonHolt(cm1_generic_gear, 
+                                   reproduction_level = rep_level)
+
+# and plot F curves again
+plotYieldVsF(cm1_generic_gear, species = "Other_fish", F_max = 1)
+```
+
+
+#####################
+##Set new reproduction levels
+Above we studied the resilience of species to changes in their mortality imposed by an artificial fishing gear. We used guidance from a classification of species into resilience classes and the expected F MSY  derived from very simple single-species models to adjust the reproduction levels for our species. Now we will use those reproduction levels in our model with the original gear parameters.
+  
+```{r}
+cm1 <- setBevertonHolt(cm1, reproduction_level = rep_level)
+# Yield curve with the commercial gear
+#plotYieldVsF(cm1, species = "Pacific_Herring", F_max = 1)
+# Yield curve with generic gear
+#plotYieldVsF(cm1_generic_gear, species = "Pacific_Herring", F_max = 1)
+```
+Why the difference? Let’s look how the original gear parameters differ from our generic set
+
+```{r}
+c(l_mat = l_mat[2], 
+  l50_commercial = gear_params(cm1)$l50[2],
+  l50_generic = gear_params(cm1_generic_gear)$l50[2])
+```
+
+```{r}
+saveParams(cm1, "cur_model_resilient_tunedMay25b.rds")
+dfcm1<-(species_params(cm1))
+
+write.csv(dfcm1, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250523_fishing1_restune2.csv")
+saveParams(cm1, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250523_fishing1_restune2.rds")
+```
+
+
+
+##Scenario 1: Change fishing effort
+The first option most users want to explore is to see what happens if we start fishing more or if we reduce fishing mortality. We will use our Curonian model with tuned reproduction and change the total fishing effort. We will run the simulation with the changed effort long enough so that it again settles down to a steady state and then look at how the system evolved over this time period.
+
+
+```{r}
+initial_effort(cm1)
+# Keep reproduction constant at the initial level
+#paramst15@species_params$constant_reproduction <- getRDD(paramst15)
+#paramst15 <- setReproduction(paramst15, RDD = "constantRDD")
+
+
+# Run the dynamics with this constant reproduction
+simt1 <- project(cm1, t_max = 100,t_save=5)
+animateSpectra(simt1, power = 2)
+ plotlyBiomassRelative(simt1)
+```
+
+```{r}
+#no effort
+
+# Run the dynamics with this constant reproduction
+simt1_redu <- project(cm1, effort =0, t_max = 100,t_save=5)
+#animateSpectra(simt1_redu, power = 2)
+ plotlyBiomassRelative(simt1_redu)
+```
+
+
+```{r}
+
+params_e3<-cm1
+species_params(params_e3)$gamma[4] <- species_params(params_e3)$gamma[4] *2
+
+params_e3<- setParams(params_e3)
+
+params_e3 <-  params_e3 |> steady() |> 
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady()
+
+ species_params(params_e3)
+  plotGrowthCurves(params_e3, species_panel = TRUE)
+ 
+simte3 <- project(params_e3, effort=1, t_max = 100, t_save=5)
+plotlyBiomassRelative(simte3)
+
+
+ simte30 <- project(params_e3, effort=0, t_max = 100, t_save=5)
+plotlyBiomassRelative(simte30)
+
+```
+
+
+```{r}
+saveParams(params_e3, "cur_model_resilient_tunedMay25b.rds")
+dfcm1<-(species_params(params_e3))
+
+write.csv(dfcm1, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250523_fishing1_restune2.csv")
+saveParams(params_e3, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250523_fishing1_restune2.rds")
+```
+
+
+```{r}
+cm1@resource_params$kappa
+#params_e4a@species_params$biomass_model[5]
+```
+
+```{r} 
+##params_e3<-cm1
+#species_params(params_e3)$gamma[4] <- species_params(params_e3)$gamma[4] *2
+#species_params(params_e3)$erepro[1] <- 0.1
+#species_params(params_e3)$erepro[14:21] <- 0.01
+
+params_e3<- setParams(params_e3)
+ 
+ params_e3 <-  params_e3 |> steady() |> 
+ #  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+ # matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> 
+#      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+ 
+
+ getReproductionLevel(params_e3)
+plotGrowthCurves(params_e3, species_panel = TRUE)
+#plotlyFeedingLevel(params_e2)
+
+ species_params(params_e3)
+ simte3 <- project(params_e3, t_max = 100, t_save=5)
+#animateSpectra(simte3, power = 2)
+ plotlyBiomassRelative(simte3)
+ 
+  simte30 <- project(params_e3, t_max = 100, effort=0,t_save=5)
+#animateSpectra(simte3, power = 2)
+ plotlyBiomassRelative(simte30)
+
+```
+
+
+#### HERE FRIDAY 23 May at 12:04pm
+best_model<-params_e3
+###BUT STILL NEEDS CHINOOK HATCH EREPRO TO BE FIXED
+
+
+
+
+
+### THIS IS THE SYNTAX WE SHOULD BE USING TO CHANGE PARS (not @)
+
+species_params(params)$h[1] <- 20
+
+
+
+```{r}
+params_e3b1@resource_params$kappa
+#params_e3b1@species_params$biomass_model[5]
+```
+
+
+#### HERE 24 Feb 2025 ####
+
+### NEED TO UPDATE HERRING CATCHABILITY, RUN HINDCAST, UPDATE FUTURE SIMULATIONS ###
+
+```{r}
+params <- readParams("/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250221_fishing1_upd2.rds")
+
+ss_gear_params_new =  read.csv("/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/gear_params_Feb2025.csv")
+
+species_params(params)
+
+```
+
+
+## 24/2/2025
+### CHANGE BIOMASS OF SEALS TO MATCH MURPHY'S CSAS 
+```{r} 
+params_e3b1c<-params
+
+#species_params(params_e3b1)$h[4] <- species_params(params_e3b1)$h[5]
+species_params(params_e3b1c)$biomass_observed[19] <- (2354.17*100000)
+species_params(params_e3b1c)$biomass_observed[20] <- (2894.53*100000)
+#species_params(params_e3b1c)$gamma[19:20] <- species_params(params_e3b1c)$gamma[19:20]*2
+species_params(params_e3b1c)$gamma[19:22] <- species_params(params_e3b1c)$gamma[19:22]*2
+species_params(params_e3b1c)$gamma[25] <- species_params(params_e3b1c)$gamma[25]*3
+
+### WHAT ABOUT TRANSIENT KILLER WHALES? COULD BE POPULATION OF ~130
+
+params_e3b1c<- setParams(params_e3b1c)
+ 
+ params_e3b1c <-  params_e3b1c |> steady() |> 
+   matchBiomasses() |> steady() #|> matchBiomasses() |> steady()# |> 
+  #    matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+    #  matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(params_e3b1c)
+ getReproductionLevel(params_e3b1c)
+ plotDiet(params_e3b1c) 
+ plotlyFeedingLevel(params_e3b1c)
+  plotGrowthCurves(params_e3b1c, species_panel=TRUE)
+ 
+ simte3b1c<- project(params_e3b1c, t_max = 100,  t_save=5)
+animateSpectra(simte3b1c, power = 2)
+ plotlyBiomassRelative(simte3b1c)
+ 
+ params_sealupd<-params_e3b1c
+
+```
+
+
+```{r}
+saveParams(params_sealupd, "ss_mizerout2011_pars_250307_fishing1_sealupd.rds")
+dfnew<-(species_params(params_e3b1c))
+
+write.csv((species_params(params_e3b1c)), 
+          "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250307_fishing1_sealupd.csv")
+
+write.csv((gear_params(params_sealupd)), 
+          "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizeroutput2011_gearpars_250307_fishing1_sealupd.csv")
+saveParams(params_sealupd, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250307_fishing1_sealupd.rds")
+
+
+```
+
+### March 17 2025
+### NEED TO UPDATE BIOMASS OF OTHER FISH IT WAS WRONG AND UPDATE CATCHABILITIES FOR 2011 from ATLANTIS
+
+
+```{r} 
+cm_fishingupd<-params_sealupd
+
+## update other fish biomass fix it was too big
+species_params(cm_fishingupd)$biomass_observed[17] <- 39532270000
+
+ss_gear_params_March <-  read.csv("/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/gear_params_Mar2025.csv")
+cm_fishingupd<- setParams(cm_fishingupd)
+cm_fishingupd<- setFishing(cm_fishingupd)
+
+#species_params(cm_fishingupd)$erepro[16] <- 0.01
+gear_params(cm_fishingupd)$species<-ss_gear_params_March$species
+gear_params(cm_fishingupd)$gear<-ss_gear_params_March$gear
+gear_params(cm_fishingupd)$sel_func<-ss_gear_params_March$sel_func
+gear_params(cm_fishingupd)$catchability<-ss_gear_params_March$catchability
+species_params(cm_fishingupd)$yield_observed<-ss_gear_params_March$yield_observed
+gear_params(cm_fishingupd)$yield_observed<-ss_gear_params_March$yield_observed
+gear_params(cm_fishingupd)$knife_edge_size<-ss_gear_params_March$knife_edge_size
+
+
+initial_effort(cm_fishingupd)=1
+ 
+ cm_fishingupd <-  cm_fishingupd |> steady() |> 
+   matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(cm_fishingupd)
+ getReproductionLevel(cm_fishingupd)
+# plotDiet(cm_fishingupd)
+ 
+# sim_fish<- project(cm_fishingupd, t_max = 100,  t_save=5)
+#animateSpectra(sim_fish, power = 2)
+## plotlyBiomassRelative(sim_fish)
+projectToSteady(cm_fishingupd)
+
+ species_params(cm_fishingupd)
+
+```
+
+
+```{r} 
+
+#cm_fishingupd2 <-cm_fishingupd
+
+#species_params(cm_fishingupd2)$erepro[6:7] <- 0.6
+#species_params(cm_fishingupd2)$erepro[9:10] <- 0.6
+#species_params(cm_fishingupd2)$erepro[10:11] <- 0.9
+#species_params(cm_fishingupd2)$erepro[16] <- 0.00001
+#species_params(cm_fishingupd2)$erepro[18] <- 0.00001
+species_params(cm_fishingupd2)$erepro[19] <- 0.5 #seals 
+species_params(cm_fishingupd2)$erepro[20] <- 0.3 #and cali
+#species_params(cm_fishingupd2)$erepro[22] <- 0.5 ##porpoise
+
+cm_fishingupd2<- setParams(cm_fishingupd2)
+
+ cm_fishingupd2 <-  cm_fishingupd2 |> steady() |> 
+   matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(cm_fishingupd2)
+ gear_params(cm_fishingupd2)
+ getReproductionLevel(cm_fishingupd2)
+# plotDiet(cm_fishingupd)
+ 
+# sim_fish<- project(cm_fishingupd, t_max = 100,  t_save=5)
+#animateSpectra(sim_fish, power = 2)
+## plotlyBiomassRelative(sim_fish)
+
+
+```
+
+tuneParams(cm_fishingupd2)
+
+
+
+
+```{r}
+cur_model <- steadySingleSpecies(
+  cm_fishingupd2,
+  species = "Harbor_seals",
+  keep = c( "biomass"))
+
+species_params(cur_model) |> select(erepro, R_max)
+
+```
+
+
+```{r} 
+cur_model <- cm_fishingupd2
+ sim1 <- project(cur_model, effort=1, t_max = 50)
+animateSpectra(sim1, power = 2)
+ plotlyBiomassRelative(sim1)
+  
+ plotSpectra(cur_model,power = 2 )
+ plotFeedingLevel(cur_model)
+   plotGrowthCurves(cur_model,species_panel = TRUE)
+  
+ plotlyFeedingLevel(sim1)
+ 
+ 
+```
+
+
+
+
+## now edit gamma for the pinnipeds
+
+best_model<-params17mar
+
+
+
+```{r}
+saveParams(best_model, "ss_mizerout2011_pars_250317_fishing1_updfmort_allsteady.rds")
+dfnew<-(species_params(best_model))
+
+write.csv((species_params(best_model)), 
+          "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250317_fishing1_updfmort_allsteady.csv")
+
+write.csv((gear_params(best_model)), 
+          "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_gearpars_250317_fishing1_updfmort_allsteady.csv")
+saveParams(best_model, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250317_fishing1_updfmort_allsteady.rds")
+
+best_model@resource_params$kappa
+```
+
+
+
+```{r}
+cur_model<-newpars
+saveParams(cur_model, "ss_mizerout2011_pars_250326_fishing1_updfmort.rds")
+dfnew<-(species_params(cur_model))
+
+write.csv((species_params(cur_model)), 
+          "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250326_fishing1_updfmort.csv")
+
+write.csv((gear_params(cur_model)), 
+          "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_gearpars_250326_fishing1_updfmort.csv")
+saveParams(cur_model, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250326_fishing1_updfmort.rds")
+
+
+```
+
+
+
+
+```{r}
+try(unload("mizerExperimental"), silent = TRUE)
+remotes::install_github("sizespectrum/mizerExperimental", quiet = TRUE)
+library(mizerExperimental)
+library(tidyverse)
+cur_model<- readRDS("~/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250317_fishing1_updfmort_allsteady.rds")
+```
+
+
+
+```{r}
+cur_model <- newMultispeciesParams(species_params = ss_species_params, 
+                                   interaction = ss_interaction,
+                                   gear_params = ss_gear_params,
+                                  initial_effort = 1,
+                                   lambda = 2.05, n=0.75,  p = 0.75, w_pp_cutoff = 50, kappa = 430335921965
+                                   )
+```
+
+new kappa = 160444035711.701
+
+
+
+
+#####22 APRIL 2025
+
+```{r}
+plot1<- plotDiet(params_e1)#, species = "California_sea_lions")
+plot2<-plotGrowthCurves(params_e1, species_panel = TRUE)
+plot3<-plotlyFeedingLevel(params_e1)
+
+saveParams(params_e1, "cur_model_resilient_tuned_250422.rds")
+dfcm4a<-(species_params(params_e1))
+
+write.csv(dfcm4a, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Nov24/pars_241212/ss_mizerout2011_pars_250422_fishing1_restune_upd.csv")
+saveParams(params_e1, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250422_fishing1_restune_upd.rds")
+```
+
+
+```{r} 
+
+sim2<- project(params_e1, t_max = 100,  t_save=5)
+animateSpectra(sim2, power = 2)
+plotlyBiomassRelative(sim2)
+ 
+
+```
+```{r} 
+
+sim10<- project(params_e1, effort=0,t_max = 100,  t_save=5)
+animateSpectra(sim10, power = 2)
+plotlyBiomassRelative(sim10 )
+ 
+
+```
+
+###HERE 23 May 2025
+
+ADD NEW GEARS
+ADD NEW BIOMASS
+
+HINDCAST
+
+REDUCE EREPRO FOR SALMON
+
+##New biomass, new catches
+
+```{r} 
+
+
+#new gear and effort that splits canadian and US fisheries
+gear_params2011_allfisheries_250521 <- read.csv("~/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/fisheries/time series fisheries/gear_params2011_allfisheries_250521.csv")
+
+```
+
+```{r} 
+#new_model <- cm_cohoupd
+
+params_upd<-params_e1
+  
+params_upd@species_params$biomass_observed[1:25]<- c(
+45458680000.00,
+139582870000.00,
+124791870000.00,
+1533897570.00,
+1207642280.00,
+554290892.00,
+958399600.00,
+17640715150.00,
+17531856000.00,
+2585437994.00,
+2090364063.00,
+915696090.75,
+963927418.67,
+125724786263.13,
+1510450000.00,
+8032990000.00,
+39532000000.00,
+9582348000.00,
+2354170200.00,
+5584788000.00,
+2894531000.00,
+609420000.00,
+233170000.00,
+180281500.00,
+99766800.00)
+
+initial_effort(params_upd)<-1
+gear_params(params_upd)<-gear_params2011_allfisheries_250521
+params_upd<- setParams(params_upd)
+params_upd<- setFishing(params_upd)
+initial_effort(params_upd)<-1
+
+ params_upd <-  params_upd |> steady() |> 
+   matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady()|> 
+     matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(params_upd)
+ 
+  sim_fish1upd<- project(params_upd, t_max = 100,  t_save=5)
+#animateSpectra(sim_fish, power = 2)
+ plotlyBiomassRelative(sim_fish1upd)
+
+```
+## CAN WE REDUCE EREPRO TO REDUCE SALMON INCREASES?
+
+```{r} 
+tuned_params2<-params_upd
+tuned_params2save<-tuned_params2
+
+species_params(tuned_params2)$erepro[4:9] <- 0.001
+species_params(tuned_params2)$r_max[4:9] <-species_params(tuned_params2)$r_max[4:9]*2
+species_params(tuned_params2)$h[4:9] <- species_params(tuned_params2)$h[4:9]*0.9
+species_params(tuned_params2)$gamma[4:9] <- species_params(tuned_params2)$gamma[4:9]*0.9
+#species_params(tuned_params)$gamma[19:21] <- species_params(tuned_params)$gamma[19:21]*1.1
+#species_params(tuned_params2)$r_max[3:9] <- species_params(tuned_params2)$r_max[3:9]*2
+#species_params(tuned_params2)$erepro[3:9] <- 0.1
+
+#reduce h - line goes up
+#reduce gamma = line goes down
+#increase gamma - line goes up
+
+
+initial_effort(tuned_params2)<-1
+#gear_params(tuned_params)<-gear_params2011_allfisheries_250521
+tuned_params2<- setParams(tuned_params2)
+#tuned_params<- setFishing(tuned_params)
+
+ tuned_params2 <-  tuned_params2 |> steady() |> 
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> matchGrowth() |>
+     matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+     matchGrowth() |> steady() |>  matchBiomasses() |> steady() |> matchGrowth() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+  matchGrowth() |> steady() |>  matchBiomasses() |> steady() |> matchGrowth() |> steady() |> 
+      matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(tuned_params2)
+ #gear_params(tuned_params2)
+ plotGrowthCurves(tuned_params2,species_panel = TRUE)
+ getReproductionLevel(tuned_params2)
+ plotlyFeedingLevel(tuned_params2)
+# plotDiet(cm_fishingupd)
+ 
+ sim_fish1<- project(tuned_params2, effort=1, t_max = 100,  t_save=5)
+#animateSpectra(sim_fish, power = 2)
+ plotlyBiomassRelative(sim_fish1)
+
+```
+```{r}
+ sim_fish0<- project(tuned_params2, effort=0, t_max = 100,  t_save=5)
+#animateSpectra(sim_fish, power = 2)
+ plotlyBiomassRelative(sim_fish0)
+```
+
+## fix transiets
+
+```{r} 
+#tuned_params3save<-tuned_params3
+#tuned_params3<-tuned_params3save
+
+tuned_params3@species_params$r_max[4] <- species_params(tuned_params3)$r_max[4]*1.2
+
+#species_params(tuned_params3)$gamma[3] <- species_params(tuned_params3)$gamma[3]*1.1 #herring
+#species_params(tuned_params3)$r_max[4] <- species_params(tuned_params3)$r_max[4]*1.2
+#species_params(tuned_params3)$h[7] <- species_params(tuned_params3)$h[7]*1.1
+#species_params(tuned_params3)$gamma[2] <- species_params(tuned_params3)$gamma[2]*1.1 #herring
+#species_params(tuned_params3)$h[2] <- species_params(tuned_params3)$h[2]*1.1
+
+#species_params(tuned_params3)$gamma[23:24] <- species_params(tuned_params3)$gamma[23:24]*1.1
+#species_params(tuned_params3)$h[23:24] <- species_params(tuned_params3)$h[23:24]*1.3
+
+#species_params(tuned_params3)$gamma[19:21] <- species_params(tuned_params3)$gamma[19:21]*0.95
+#species_params(tuned_params3)$h[19:22] <- species_params(tuned_params3)$h[19:22]*1.1
+#species_params(tuned_params3)$gamma[20] <- species_params(tuned_params3)$gamma[19]*1.1
+#species_params(tuned_params3)$h[4:9] <- species_params(tuned_params3)$h[4:9]*0.9
+#species_params(tuned_params3)$erepro[4] <- 0.0001
+#species_params(tuned_params3)$r_max[4] <- species_params(tuned_params3)$r_max[4]*10000 
+#gear_params(tuned_params3)$catchability[4] <- gear_params(tuned_params3)$catchability[4:7]*0.9
+
+#species_params(tuned_params3)$gamma[23] <- species_params(tuned_params3)$gamma[23]*0.9
+
+#reduce h - line goes up
+#reduce gamma = line goes down
+#increase gamma - line goes up
+
+
+initial_effort(tuned_params3)<-1
+#gear_params(tuned_params)<-gear_params2011_allfisheries_250521
+tuned_params3<- setParams(tuned_params3)
+tuned_params3<- setFishing(tuned_params3)
+initial_effort(tuned_params3)<-1
+
+
+ tuned_params3 <-  tuned_params3 |> steady() |> 
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> #matchGrowth() |>
+     matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+    # matchGrowth() |> steady() |>  matchBiomasses() |> steady() |> matchGrowth() |> steady() |> 
+  #    matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+ # matchGrowth() |> steady() |>  matchBiomasses() |> steady() |> matchGrowth() |> steady() |> 
+      matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(tuned_params3)
+ #gear_params(tuned_params2)
+ plotGrowthCurves(tuned_params3,species_panel = TRUE)
+ getReproductionLevel(tuned_params3)
+ plotlyFeedingLevel(tuned_params3)
+# plotDiet(cm_fishingupd)
+ 
+ sim_fish1<- project(tuned_params3, effort=1, t_max = 100,  t_save=5)
+#animateSpectra(sim_fish, power = 2)
+ plotlyBiomassRelative(sim_fish1)
+
+```
+
+
+```{r}
+ sim_fish30<- project(tuned_params3, effort=0, t_max = 30,  t_save=5)
+#animateSpectra(sim_fish, power = 2)
+ plotlyBiomassRelative(sim_fish30)
+```
+
+
+## try something else - SPIN UP
+Next we use the effort data to project the model forwards from it’s steady state. But wait - we did not set up the model for the first year of the data, when fishing only just began. It may make more sense to use a steady state without fishing as the initial values for our projection.
+```{r}
+#project to zero fishing rate 
+new_model0 <- projectToSteady(tuned_params3,t_max=30, effort = 0)
+sim0<-project(new_model0,t_max=20, effort=0)
+plotlyBiomassRelative(sim0)
+```
+
+### HERRING STRONGLY AFFECTED BY PREDATOR INCREASES - NOT BY FISHING
+CHINOOK AFFECTED BY FISHING
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+######################
+## OLD CODING ###
+
+
+
+
+#### 15 May 2025
+
+
+### fix coho biomass
+
+```{r} 
+cm_cohoupd<-cur_model
+
+species_params(cm_cohoupd)$biomass_observed[6] <- 958178446.4037
+species_params(cm_cohoupd)$biomass_observed[7] <- 963927418.6743
+species_params(cm_cohoupd)$biomass_observed[12] <- 196838014.80
+species_params(cm_cohoupd)$biomass_observed[13] <- 272478300.00 
+
+
+cm_cohoupd<- setParams(cm_cohoupd)
+
+ cm_cohoupd <-  cm_cohoupd |> steady() |> 
+   matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady()  |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(cm_cohoupd)
+ #gear_params(cm_cohoupd)
+ getReproductionLevel(cm_cohoupd)
+ plotFeedingLevel(cm_cohoupd)
+ 
+ sim_fish<- project(cm_cohoupd, t_max = 100,  t_save=5)
+animateSpectra(sim_fish, power = 2)
+ plotlyBiomassRelative(sim_fish)
+
+
+```
+
+
+##READ IN NEW GEAR PARAMS
+gear_params2011_allfisheries_250515 <- read.csv("~/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/fisheries/time series fisheries/gear_params2011_allfisheries_250515_noMM.csv")
+
+```{r} 
+gear_params2011_allfisheries_250515 <- read.csv("~/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/fisheries/time series fisheries/gear_params2011_allfisheries_250515_noMM.csv")
+
+new_model <- cm_cohoupd
+
+gear_params(new_model)<-gear_params2011_allfisheries_250515
+#params_e3b1a<- setParams(params_e3b1a)
+
+new_model<- setFishing(new_model)
+
+ new_model <-  new_model |> steady() |> 
+   matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+     # matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(new_model)
+ #gear_params(cm_cohoupd)
+ getReproductionLevel(new_model)
+# plotDiet(cm_fishingupd)
+ 
+ sim_fish<- project(new_model, t_max = 100,  t_save=5)
+animateSpectra(sim_fish, power = 2)
+ plotlyBiomassRelative(sim_fish)
+
+
+```
+
+
+### TRY TO RUN HISTORICAL MODEL
+
+```{r}
+All_fisheries_effort_array <- as(read.csv("~/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/fisheries/time series fisheries/All_fisheries_effort_array_manualupd.csv", row.names = 1), "matrix")
+
+relative_effort <- sweep(All_fisheries_effort_array, 2, All_fisheries_effort_array["2011", ], "/")
+relative_effort[as.character(1979:2011), ]
+
+#remove years after 2011
+new_rel_effort<-head(relative_effort,-12)
+```
+
+We could just project forward with these relative efforts. However, the population dynamics in the early years will be strongly determined by the initial population abundances (known as the transient behaviour - essentially the initial behaviour before the long term dynamics are reached). As this is ecology, we don’t know what the initial abundance are. One way around this is to project forward at a constant fishing mortality equal to the mortality in the first historical year until equilibrium is reached. We then use this steady state as the initial state for the simulation. This approach reduces the impact of transient dynamics.
+
+```{r}
+t_per=1.9
+#new_rel_effortX<-tail(new_rel_effort,-11)
+new_model_hist <- projectToSteady(new_model, 
+                                  distance_func = distanceSSLogN,
+                                  t_per = 0.5,
+                                t_max = 50,
+                                dt = 0.1,
+                                return_sim = FALSE,
+                                 progress_bar = TRUE,
+                                tol = 0.5 * t_per,
+                                effort = new_rel_effort["1979", ])
+```
+
+
+We now have our parameter object and out matrix of efforts relative to 1979. We use this effort matrix as the effort argument to the project() function. We use dt = 0.25 (the simulation will run faster than with the default value of 0.1, but tests show that the results are still stable) and save the results every year.
+
+
+```{r}
+sim <- project(new_model_hist, effort = new_rel_effort, t_max=20, dt = 0.1, t_save = 1)
+plotlyBiomassRelative(sim)
+plotYieldGear(simf)
+```
+
+
+
+
+## try something else - SPIN UP
+Next we use the effort data to project the model forwards from it’s steady state. But wait - we did not set up the model for the first year of the data, when fishing only just began. It may make more sense to use a steady state without fishing as the initial values for our projection.
+```{r}
+#project to zero fishing rate 
+new_model0 <- projectToSteady(new_model,t_max=20, effort = 0)
+sim0<-project(new_model,t_max=20, effort=0)
+plotlyBiomassRelative(sim0)
+```
+
+
+```{r}
+#project with fishing effort
+new_rel_effortX<-tail(new_rel_effort,-17)
+simf <- project(new_model0, effort = (new_rel_effortX*0.9))
+plotlyBiomassRelative(simf)
+plotlyYieldGear(simf) #+ 
+   # geom_point(data = dat, shape = 1, size = 1, 
+    #           mapping = aes(x = Year, y = CatchPerArea))
+```
+
+
+
+```{r}
+#project with fishing effort
+new_rel_effortX<-tail(new_rel_effort,-17)
+params3 <- setInitialValues(new_model0, sim0)
+simf3 <- project(params3, effort = new_rel_effortX)
+plotlyBiomassRelative(simf3)
+plotlyYieldGear(simf3) #+ 
+   # geom_point(data = dat, shape = 1, size = 1, 
+    #           mapping = aes(x = Year, y = CatchPerArea))
+```
+
+
+###Make MM more density dependent
+
+### fix coho biomass
+
+```{r} 
+cm_updMM<-cm_cohoupd
+
+species_params(cm_updMM)$gamma[20:21] <- species_params(cm_updMM)$gamma[20:21]*0.3
+species_params(cm_updMM)$h[20:21] <- species_params(cm_updMM)$h[20:21]*1.5
+species_params(cm_updMM)$gamma[22] <- species_params(cm_updMM)$gamma[22]*0.3
+species_params(cm_updMM)$h[22] <- species_params(cm_updMM)$h[22]*1.2
+species_params(cm_updMM)$gamma[23] <- species_params(cm_updMM)$gamma[23]*0.3
+species_params(cm_updMM)$h[23] <- species_params(cm_updMM)$h[23]*1.2
+species_params(cm_updMM)$gamma[25] <- species_params(cm_updMM)$gamma[25]*0.965
+species_params(cm_updMM)$h[25] <- species_params(cm_updMM)$h[25]*1.01
+species_params(cm_updMM)$gamma[24] <- species_params(cm_updMM)$gamma[24]*1.09
+species_params(cm_updMM)$h[24] <- species_params(cm_updMM)$h[24]*0.98
+
+species_params(cm_updMM)$gamma[19] <- species_params(cm_updMM)$gamma[19]*1.1
+species_params(cm_updMM)$h[19] <- species_params(cm_updMM)$h[19]*0.9
+species_params(cm_updMM)$gamma[5] <- species_params(cm_updMM)$gamma[5]*0.98 #chinook
+#species_params(cm_updMM)$h[5] <- species_params(cm_updMM)$h[5]*1.3
+species_params(cm_updMM)$gamma[4] <- species_params(cm_updMM)$gamma[4]*1.07 #chinook hatch adult
+species_params(cm_updMM)$h[4] <- species_params(cm_updMM)$h[4]*0.95
+species_params(cm_updMM)$gamma[6:7] <- species_params(cm_updMM)$gamma[6:7]*1.2 #coho
+species_params(cm_updMM)$h[6:7] <- species_params(cm_updMM)$h[6:7]*0.9
+species_params(cm_updMM)$gamma[8:9] <- species_params(cm_updMM)$gamma[8:9]*1.1
+species_params(cm_updMM)$h[8:9] <- species_params(cm_updMM)$h[8:9]*0.95
+
+species_params(cm_updMM)$gamma[7] <- species_params(cm_updMM)$gamma[7]*1.01 #chinook
+#species_params(cm_updMM)$h[7] <- species_params(cm_updMM)$h[7]*0.95
+
+#species_params(cm_updMM)$gamma[15] <- species_params(cm_updMM)$gamma[15]*0.6
+#species_params(cm_updMM)$h[15] <- species_params(cm_updMM)$h[15]*0.6
+#reduce h - line goes up
+#reduce gamma = line goes down
+#increase gamma - line goes up
+
+#species_params(cm_updMM)$gamma[12:13] <- species_params(cm_updMM)$gamma[12:13]*1.5 #coho resident
+#species_params(cm_updMM)$h[12:13] <- species_params(cm_updMM)$h[12:13]*0.9
+
+
+cm_updMM<- setParams(cm_updMM)
+
+ cm_updMM <-  cm_updMM |> steady() |> 
+  # matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+     #matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady()  |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() #|> matchBiomasses() |> steady() 
+
+ species_params(cm_updMM)
+ #gear_params(cm_cohoupd)
+ plotGrowthCurves(cm_updMM,species_panel = TRUE)
+ getReproductionLevel(cm_updMM)
+ plotlyFeedingLevel(cm_updMM)
+ 
+ sim_fish2<- project(cm_updMM, t_max = 100,  t_save=5)
+animateSpectra(sim_fish2, power = 2)
+ plotlyBiomassRelative(sim_fish2)
+
+
+```
+
+```{r} 
+gear_params2011_allfisheries_250515 <- read.csv("~/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/fisheries/time series fisheries/gear_params2011_allfisheries_250515_noMM.csv")
+
+cm_updMM2 <- cm_updMM
+
+gear_params(cm_updMM2)<-gear_params2011_allfisheries_250515
+#params_e3b1a<- setParams(params_e3b1a)
+
+cm_updMM2<- setFishing(cm_updMM2)
+
+ cm_updMM2 <-  cm_updMM2 |> steady() |> 
+   matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+     # matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(cm_updMM2)
+ #gear_params(cm_cohoupd)
+ getReproductionLevel(cm_updMM2)
+# plotDiet(cm_fishingupd)
+ 
+ sim_fish<- project(cm_updMM2, t_max = 100,  t_save=5)
+animateSpectra(sim_fish, power = 2)
+ plotlyBiomassRelative(sim_fish)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##READ IN NEW GEAR PARAMS - PS ONLY
+
+gear_params2011_allfisheries_250515_PS <- read.csv("~/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/fisheries/time series fisheries/gear_params2011_allfisheries_250515_noMM_PS.csv")
+## manually change the catchability to match the calibrated model
+
+```{r} 
+gear_params2011_allfisheries_250515_PSonly <- read.csv("~/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/fisheries/time series fisheries/gear_params2011_allfisheries_250515_PSonly.csv")
+
+new_modelPS <- cur_model
+
+gear_params(new_modelPS)<-gear_params2011_allfisheries_250515_PSonly
+#params_e3b1a<- setParams(params_e3b1a)
+
+new_modelPS<- setFishing(new_modelPS)
+new_modelPS<- setParams(new_modelPS)
+
+ new_modelPS <-  new_modelPS |> steady() |> 
+   matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+     # matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(new_modelPS)
+ #gear_params(cm_cohoupd)
+# getReproductionLevel(new_model)
+# plotDiet(cm_fishingupd)
+ 
+ sim_fishPS<- project(new_modelPS, t_max = 100,  t_save=5)
+animateSpectra(sim_fishPS, power = 2)
+ plotlyBiomassRelative(sim_fishPS)
+
+gear_params(new_modelPS       )
+```
+
+
+### TRY TO RUN HISTORICAL MODEL
+
+```{r}
+All_fisheries_effort_arrayPS <- as(read.csv("~/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/fisheries/time series fisheries/All_fisheries_effort_array_manualupd_PSonly.csv", row.names = 1), "matrix")
+
+relative_effortPS <- sweep(All_fisheries_effort_arrayPS, 2, All_fisheries_effort_arrayPS["2011", ], "/")
+relative_effortPS[as.character(1979:2011), ]
+
+#remove years after 2011
+new_rel_effortPS<-head(relative_effortPS,-12)
+```
+
+We could just project forward with these relative efforts. However, the population dynamics in the early years will be strongly determined by the initial population abundances (known as the transient behaviour - essentially the initial behaviour before the long term dynamics are reached). As this is ecology, we don’t know what the initial abundance are. One way around this is to project forward at a constant fishing mortality equal to the mortality in the first historical year until equilibrium is reached. We then use this steady state as the initial state for the simulation. This approach reduces the impact of transient dynamics.
+
+```{r}
+t_per=5
+new_rel_effortPSX<-tail(new_rel_effortPS,-11)
+new_model_histPS <- projectToSteady(new_modelPS, 
+                                  distance_func = distanceSSLogN,
+                                  t_per = 1.5,
+                                t_max = 100,
+                                dt = 0.1,
+                                return_sim = FALSE,
+                                 progress_bar = TRUE,
+                                tol = 0.79 * t_per,
+                                effort = new_rel_effortPSX["1996", ])
+```
+
+
+We now have our parameter object and out matrix of efforts relative to 1979. We use this effort matrix as the effort argument to the project() function. We use dt = 0.25 (the simulation will run faster than with the default value of 0.1, but tests show that the results are still stable) and save the results every year.
+
+
+```{r}
+sim <- project(new_model_histPS, effort = new_rel_effortPSX, t_max=20, dt = 0.1, t_save = 1)
+plotlyBiomassRelative(sim)
+plotYieldGear(simf)
+```
+#############################################
+##21 May 2025
+
+
+#tuned_params <- readRDS("~/Downloads/tuned_params - 2025-05-21T180841.603.rds")
+tuned_params2 <- readRDS("~/Downloads/tuned_params - 2025-05-21T204230.655.rds")
+
+
+```{r}
+ sim_fish1<- project(tuned_params4, effort=1, t_max = 100,  t_save=0.5)
+#animateSpectra(sim_fish, power = 2)
+ plotlyBiomassRelative(sim_fish1)
+```
+
+
+
+
+
+best_model<-tuned_params2
+```{r}
+best_model<-tuned_params2
+saveParams(best_model, "ss_mizerout2011_pars_250521_newsplitfishing.rds")
+dfnew<-(species_params(best_model))
+
+write.csv((species_params(best_model)), 
+          "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250521_newsplitfishing.csv")
+
+write.csv((gear_params(best_model)), 
+          "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_gears_250521_newsplitfishing.csv")
+saveParams(best_model, "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/ss_pars_Jan25/ss_mizerout2011_pars_250521_newsplitfishing.rds")
+
+
+```
+
+### TRY TO RUN HISTORICAL MODEL
+
+```{r} 
+
+## FIX GEAR PARAMS issues with matching names
+
+#new gear and effort that splits canadian and US fisheries
+gear_params2011_allfisheries_250521 <- read.csv("~/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/fisheries/time series fisheries/gear_params2011_allfisheries_250521.csv")
+initial_effort(best_model)<-1
+gear_params(best_model)<-gear_params2011_allfisheries_250521
+best_model<- setParams(best_model)
+best_model<- setFishing(best_model)
+
+```
+
+```{r} 
+#tuned_params3save<-tuned_params3
+tuned_params3<-best_model
+initial_effort<-1
+species_params(tuned_params3)$gamma[1] <- species_params(tuned_params3)$gamma[1]*1.0001
+#species_params(tuned_params3)$h[3] <- species_params(tuned_params3)$h[3]*0.999
+#species_params(tuned_params3)$gamma[3] <- species_params(tuned_params3)$gamma[3]*1.001
+
+gear_params(tuned_params3)<-gear_params2011_allfisheries_250521
+tuned_params3<- setParams(tuned_params3)
+tuned_params3<- setFishing(tuned_params3)
+
+ #tuned_params3 <-  tuned_params3 |> steady() |> 
+#   matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() #|> steady() |> steady() |> matchBiomasses()|> steady() |> matchBiomasses()|> steady() #|> matchBiomasses()|> steady() |> matchBiomasses()
+
+ species_params(tuned_params3)
+ #gear_params(tuned_params3)
+ plotGrowthCurves(tuned_params3,species_panel = TRUE)
+ getReproductionLevel(tuned_params3)
+ plotlyFeedingLevel(tuned_params3)
+# plotDiet(cm_fishingupd)
+ 
+ sim_fish<- project(tuned_params3, t_max = 100,  t_save=5)
+#animateSpectra(sim_fish, power = 2)
+ plotlyBiomassRelative(sim_fish)
+
+
+```
+cur_model<-tuned_params3
+
+```{r}
+All_fisheries_effort_array <- as(read.csv("~/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/fisheries/time series fisheries/All_fisheries_effort_array_250521.csv", row.names = 1), "matrix")
+
+relative_effort <- sweep(All_fisheries_effort_array, 2, All_fisheries_effort_array["2011", ], "/")
+relative_effort[as.character(1986:2018), ]
+
+#remove years after 2011 ##33 rows,2011 is at 26 - remove 7 rows
+new_rel_effort<-head(relative_effort,-7)
+```
+
+We could just project forward with these relative efforts. However, the population dynamics in the early years will be strongly determined by the initial population abundances (known as the transient behaviour - essentially the initial behaviour before the long term dynamics are reached). As this is ecology, we don’t know what the initial abundance are. One way around this is to project forward at a constant fishing mortality equal to the mortality in the first historical year until equilibrium is reached. We then use this steady state as the initial state for the simulation. This approach reduces the impact of transient dynamics.
+
+```{r}
+t_per=149
+#new_rel_effortX<-tail(new_rel_effort,-11)
+new_model_hist <- projectToSteady(cur_model, 
+                                  distance_func = distanceSSLogN,
+                                 # t_per = 0.5,
+                                t_max = 50,
+                                dt = 0.1,
+                                return_sim = FALSE,
+                                 progress_bar = TRUE,
+                                tol = 0.001 * t_per,
+                                effort = new_rel_effort["1986", ])
+```
+
+
+We now have our parameter object and out matrix of efforts relative to 1979. We use this effort matrix as the effort argument to the project() function. We use dt = 0.25 (the simulation will run faster than with the default value of 0.1, but tests show that the results are still stable) and save the results every year.
+
+
+```{r}
+sim <- project(new_model_hist, effort = new_rel_effort, t_max=20, dt = 0.1, t_save = 1)
+plotlyBiomassRelative(sim)
+plotYieldGear(simf)
+```
+
+
+
+
+
+## try something else - SPIN UP
+Next we use the effort data to project the model forwards from it’s steady state. But wait - we did not set up the model for the first year of the data, when fishing only just began. It may make more sense to use a steady state without fishing as the initial values for our projection.
+```{r}
+#project to zero fishing rate 
+spinup_model<- projectToSteady(cur_model, effort = 0)
+sim0<-project(spinup_model,t_max=100, effort=0, t_save=0.1)
+plotlyBiomassRelative(sim0)
+```
+
+
+```{r}
+#project with fishing effort
+#new_rel_effortX<-tail(new_rel_effort,-17)
+simf <- project(spinup_model, effort = (new_rel_effort*0.1))
+plotlyBiomassRelative(simf)
+plotlyYieldGear(simf) #+ 
+   # geom_point(data = dat, shape = 1, size = 1, 
+    #           mapping = aes(x = Year, y = CatchPerArea))
+```
+
+IT"S WORKING!!!!! BUT CANNOT SUSTAIN CATCHES?????
+
+###NEXT STEPS - PLOT WITH CATCHES TO SEE FIT!!!
+
+
+
+
+
+```{r}
+#project with fishing effort
+new_rel_effortX<-tail(new_rel_effort,-17)
+params3 <- setInitialValues(new_model0, sim0)
+simf3 <- project(params3, effort = new_rel_effortX)
+plotlyBiomassRelative(simf3)
+plotlyYieldGear(simf3) #+ 
+   # geom_point(data = dat, shape = 1, size = 1, 
+    #           mapping = aes(x = Year, y = CatchPerArea))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##14 May 2025
+
+What if we only have catch data?
+What if there was no effort data and only catch data? This is the case for many data-poor fisheries or for fisheries where there is only restricted access to effort data.
+
+Many fisheries develop through time according to phases: an exponential growth period, following either a peak and subsequent decline and a plateau, if stocks drop below sustainable levels and management kicks in (see here for example). These different types of development can be represented by a function, logistic_effort(), and can be used to help estimate the fishing parameters given the the model parameters and data you may have. This is the approach used here. Here, we will use this function to explore effort through time.
+
+```{r} 
+logistic_effort <- function(effort_array,
+                           # gear = "longline",
+                            time = 1979:2011,
+                            Fmax = 1.5,
+                            steepness = 0.2,
+                            midpoint = 2005) {
+    effort_array[, gear] <- Fmax / (1 + exp(-steepness*(time - midpoint)))
+    return(effort_array)
+}
+```
+
+After using the above function we can scale the effort up to the effort units we used in our base model. We do this by setting the Fmax in the logistic equation to the desired level of fishing mortality rate (e.g. 0.005 was used above but for this example we will plug in a different value to explore heavier fishing). We then divide Fmax by our estimated catchability coefficient (which was estimated to be a very small number) to get effort in the correct ballpark and units as the data we used above. If you want to run the model directly with fishing mortality rate as the “effort” driver, you would need to set the catchability coefficient to 1 in this example. If no effort exists for your system, we would need to estimate the catchability coefficient (either by hand tuning or statistical time-series fitting).
+
+
+```{r} 
+neweffort <- logistic_effort(effort_time, time = 1979:2011, Fmax = 0.5,
+                             steepness = 0.9, midpoint = 1995)
+
+#rescale to get effort in same units as our example
+neweffort <- neweffort / gear_params(params_e1)$catchability[1]
+
+# or if you want to just use fishing mortality only in your model, 
+# overwrite the catchability to 1:
+ gear_params(params_e1)$catchability[1] <- 1
+
+year = 1979:2011
+qplot(year, neweffort, ylab = "effort", xlab = "")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##### MORE SCENARIOS AND OUTPUTS
+```{r} 
+cur_model = params_e1
+### FISHING=0
+
+ 
+ sim_4a0 <- project(cur_model, effort=0, t_max = 100)
+animateSpectra(sim_4a0, power = 2)
+ plotlyBiomassRelative(sim_4a0)
+
+
+write.csv(getBiomass(sim_4a0), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing0_biomass.csv") ##fishing=0
+
+write.csv(getN(sim_4a0), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing0_N.csv") ##fishing=0
+
+#PROP LARGE FISH
+write.csv(getProportionOfLargeFish(sim_4a0), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing0_proplrgfish.csv") ##fishing=0
+
+#SPAWNING STOCK BIOMASS
+write.csv(getSSB(sim_4a0), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing0_SSB.csv") ##
+
+##predation mortality
+write.csv(getM2(sim_4a0), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing0_predmort.csv") 
+
+## yield
+write.csv(getYield(sim_4a0), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing0_yield.csv")
+
+
+
+
+
+### SIM - INCREASE FISHING
+ 
+ sim_4a1 <- project(cur_model, effort=1.5, t_max = 100)
+animateSpectra(sim_4a1, power = 2)
+ plotlyBiomassRelative(sim_4a1)
+
+
+write.csv(getBiomass(sim_4a1), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing1.5_biomass.csv") ##fishing=0
+write.csv(getN(sim_4a1), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing1.5_N.csv") ##
+
+#PROP LARGE FISH
+write.csv(getProportionOfLargeFish(sim_4a1), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing1.5_proplrgfish.csv") ##
+
+#SPAWNING STOCK BIOMASS
+write.csv(getSSB(sim_4a1), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing1.5_SSB.csv") ##
+
+##predation mortality
+write.csv(getM2(sim_4a1), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing1.5_predmort.csv") ##
+
+## yield
+write.csv(getYield(sim_4a1), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250422/sim_fishing1.5_yield.csv") 
+
+```
+
+###
+write.csv(getBiomass(simte3b1a), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/sim_fishing1.5_incrsalmInitbiom_biomass.csv") ##fishing=0
+
+dat<- read.csv("/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/sim_fishing1.2_nosalmcatch_biomass.csv")
+#simte3b1a2
+dat<- read.csv("/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/sim_fishing1.2_nosalmcatch_predmort.csv")
+
+datN<- read.csv("/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/sim_fishing1.2_nosalmcatch_proplrgfish.csv")
+
+#read.csv("/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/plots.csv")
+
+# Create a side-by-side layout
+par(mfrow = c(1,1))
+
+# Create the first plot
+plot(dat$Year, dat$Prop.Lrg.Fish, type = 'l', col = 'purple',
+     xlab = 'Year', ylab = 'biomass',main="Prop Lrg Fish")
+ #points(daty$Year, daty$Invertebrates, type = 'l', col = 'red')  
+
+# Create a side-by-side layout
+par(mfrow = c(4,4))
+
+# Create the first plot
+plot(dat$Year, dat$Invertebrates, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Invertebrates")
+ points(daty$Year, daty$Invertebrates, type = 'l', col = 'red')    
+     
+plot(dat$Year, dat$Chinook_Hatch_Adult, type = 'l', col = 'blue', 
+     xlab = 'Year', ylab = 'biomass', main="Chinook_Hatch_Adult")
+
+plot(dat$Year, dat$Chinook_Hatch_Resident, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass', main="Chinook_Hatch_Resident")
+
+plot(dat$Year, dat$Chinook_Wild_Adult, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Chinook_Wild_Adult")
+
+plot(dat$Year, dat$Chinook_Wild_Resident, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Chinook_Wild_Resident")
+
+     
+plot(dat$Year, dat$Coho_Hatch_Adult, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Coho_Hatch_Adult")
+     
+ plot(dat$Year, dat$Coho_Hatch_Resident, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Coho_Hatch_Resident")
+    
+plot(dat$Year, dat$Coho_Wild_Adult, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Coho_Wild_Adult")
+     
+plot(dat$Year, dat$Coho_Wild_Resident, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Coho_Wild_Resident")
+         
+plot(dat$Year, dat$Hake, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Hake")
+     
+plot(dat$Year, dat$Rockfish, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Rockfish")     
+     
+     
+plot(dat$Year, dat$Harbor_seals, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Harbor_seals")
+     
+plot(dat$Year, dat$Steller_sealions, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="Steller_sealions")
+         
+     
+plot(dat$Year, dat$Resident_Orca_S, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="SRKW")
+         
+
+plot(dat$Year, dat$Resident_Orca_N, type = 'l', col = 'blue',
+     xlab = 'Year', ylab = 'biomass',main="NRKW")
+         
+
+
+
+
+
+
+
+
+
+
+
+### INCREASE HATCHERY PRODUCTION - PULSE
+```{r} 
+params_e3b1a<-cur_model
+
+#species_params(params_e3b1)$h[4] <- species_params(params_e3b1)$h[5]
+species_params(params_e3b1a)$biomass_observed[4] <- species_params(params_e3b1a)$biomass_observed[4]*2
+species_params(params_e3b1a)$biomass_observed[6] <- species_params(params_e3b1a)$biomass_observed[6]*2
+species_params(params_e3b1a)$biomass_observed[10] <- species_params(params_e3b1a)$biomass_observed[10]*2
+species_params(params_e3b1a)$biomass_observed[12] <- species_params(params_e3b1a)$biomass_observed[12]*2
+species_params(params_e3b1a)$biomass_observed[9] <- species_params(params_e3b1a)$biomass_observed[9]*2
+gear_params(params_e3b1a)["Sockeye_Adult, knife_edge_gear", "catchability"] <- gear_params(params_e3b1a)["Sockeye_Adult, knife_edge_gear", "catchability"]*0.9
+
+params_e3b1a<- setParams(params_e3b1a)
+ params_e3b1a<- setFishing(params_e3b1a)
+# params_e3b1a <-  params_e3b1a |> steady() |> 
+ #  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+ #     matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(params_e3b1a)
+ #getReproductionLevel(params_e3b1a)
+ #plotDiet(params_e3b1a)
+ 
+ 
+ 
+ simte3b1a <- project(params_e3b1a, effort=1.5, t_max = 100)
+animateSpectra(simte3b1a, power = 2)
+ plotlyBiomassRelative(simte3b1a)
+
+```
+
+```{r} 
+### SIM - INCREASE SALMON ADULT RETURNS (CHINOOK PRODUCTIVITY)
+ 
+write.csv(getBiomass(simte3b1a), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/sim_ChinAincrease10x_biomass.csv") ##fishing=0
+write.csv(getN(simte3b1a), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/ChinAincrease10x_N.csv") ##
+
+#PROP LARGE FISH
+write.csv(getProportionOfLargeFish(simte3b1a), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/sim_ChinAincrease10x_proplrgfish.csv") ##
+
+#SPAWNING STOCK BIOMASS
+write.csv(getSSB(simte3b1a), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/sim_ChinAincrease10x_SSB.csv") ##
+
+##predation mortality
+write.csv(getM2(simte3b1a), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/sim_ChinAincrease10x_predmort.csv") ##
+
+## yield
+write.csv(getYield(simte3b1a), "/Users/vivtulloch/Dropbox/UBC/Projects/Orca_salmon_modelling/07_sizespectra/Viv_sizespectra_model/Salish_Sea/outputs_250221/sim_ChinAincrease10x_yield.csv") 
+```
+
+
+### INCREASE HATCHERY PRODUCTION - PULSE
+```{r} 
+params_e3b1a2<-cur_model
+
+#species_params(params_e3b1)$h[4] <- species_params(params_e3b1)$h[5]
+#species_params(params_e3b1a)$biomass_observed[4] <- species_params(params_e3b1a)$biomass_observed[4]*2
+#species_params(params_e3b1a)$biomass_observed[6] <- species_params(params_e3b1a)$biomass_observed[6]*2
+#species_params(params_e3b1a)$biomass_observed[10] <- species_params(params_e3b1a)$biomass_observed[10]*2
+#species_params(params_e3b1a)$biomass_observed[12] <- species_params(params_e3b1a)$biomass_observed[12]*2
+#species_params(params_e3b1a)$biomass_observed[10:11] <- species_params(params_e3b1a)$biomass_observed[10:11]*2
+
+gear_params(params_e3b1a2)["Chinook_Hatch_Adult, knife_edge_gear", "catchability"] <- 0
+gear_params(params_e3b1a2)["Chinook_Wild_Adult, knife_edge_gear", "catchability"] <- 0
+gear_params(params_e3b1a2)["Coho_Hatch_Adult, knife_edge_gear", "catchability"] <- 0
+gear_params(params_e3b1a2)["Coho_Wild_Adult, knife_edge_gear", "catchability"] <- 0
+gear_params(params_e3b1a2)["Chinook_Hatch_Resident, knife_edge_gear", "catchability"] <- 0
+gear_params(params_e3b1a2)["Chinook_Wild_Resident, knife_edge_gear", "catchability"] <- 0
+gear_params(params_e3b1a2)["Coho_Hatch_Resident, knife_edge_gear", "catchability"] <- 0
+gear_params(params_e3b1a2)["Coho_Wild_Resident, knife_edge_gear", "catchability"] <- 0
+gear_params(params_e3b1a2)["Sockeye_Adult, knife_edge_gear", "catchability"] <- gear_params(params_e3b1a2)["Sockeye_Adult, knife_edge_gear", "catchability"]/2
+
+
+
+params_e3b1a2<- setParams(params_e3b1a2)
+ params_e3b1a2<- setFishing(params_e3b1a2)
+# params_e3b1a <-  params_e3b1a |> steady() |> 
+ #  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+ #     matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ #species_params(params_e3b1a)
+ #getReproductionLevel(params_e3b1a)
+ #plotDiet(params_e3b1a)
+ 
+ 
+ 
+ simte3b1a2 <- project(params_e3b1a2, effort=1.2, t_max = 100)
+animateSpectra(simte3b1a2, power = 2)
+ plotlyBiomassRelative(simte3b1a2)
+
+```
+
+
+```{r} 
+
+ 
+ simte3b1b <- project(params_e3b1a, effort=1.1,
+                      t_max = 100)
+animateSpectra(simte3b1b, power = 2)
+ plotlyBiomassRelative(simte3b1b)
+
+```
+
+
+
+
+
+
+
+
+### ADD SEAL FISHING
+```{r} 
+params_e3b1b<-params_e4a1b
+
+
+gear_params(params_e3b1b)$yield_observed[19] <-  (species_params(params_e3b1b)$biomass_observed[19])/2
+gear_params(params_e3b1b)$catchability[19] <- 0.5
+gear_params(params_e3b1b)$knife_edge[19] <- 40000
+gear_params(params_e3b1b)$knife_edge_size[19] <- 40000
+gear_params(params_e3b1b)$rec_age_fish[19]<-4
+
+species_params(params_e3b1b)$erepro[25] <- 0.08
+species_params(params_e3b1b)$gamma[25] <- species_params(params_e3b1b)$gamma[25]*1.8 #2
+species_params(params_e3b1b)$h[25] <- species_params(params_e3b1b)$h[25]*0.95 #0.95
+
+params_e3b1b<- setParams(params_e3b1b)
+ 
+# params_e3b1b <-  params_e3b1b |> steady() |> 
+#   matchBiomasses() |> steady() |> matchBiomasses() |> steady() |> 
+#      matchBiomasses() |> steady() |>  matchBiomasses() |> steady() |> matchBiomasses() |> steady() 
+
+ species_params(params_e3b1b)
+ getReproductionLevel(params_e3b1b)
+ plotFeedingLevel(params_e3b1b)
+ plotGrowthCurves(params_e3b1b,species_panel = TRUE)
+ 
+ 
+ simte3b1b <- project(params_e3b1b, effort=1, t_max = 50,  t_save=5)
+animateSpectra(simte3b1b, power = 2)
+ plotlyBiomassRelative(simte3b1b)
+
+```
+
+```{r} 
+#params_e3b1b<-cur_model
+
+simte3b1b <- project(params_e3b1b, effort=1.05, t_max = 50,  t_save=5)
+animateSpectra(simte3b1b, power = 2)
+ plotlyBiomassRelative(simte3b1b)
+ plotlyBiomass(simte3b1b)
+
+```
+
+
+
+### ADD INCREASING TRANSIENTS
+```{r} 
+
+params <- base_model
+
+species_params(params)$z0[19] <- species_params(params)$z0[19]*0.95 #0.95
+species_params(params)$z0[20:21] <- species_params(params)$z0[20:21]*0.8 #0.95
+species_params(params)$z0[25] <- species_params(params)$z0[25]*0.8 #0.95
+species_params(params)$erepro[25] <- species_params(params)$erepro[25]*1.5
+
+params <- setReproduction(params)
+params <- steady(params)
+
+
+ simcm <- project(params, t_max = 100, t_save=5)
+animateSpectra( simcm , power = 2)
+ plotlyBiomassRelative( simcm )
+  plotlyBiomass(simcm)
+
+```
+
+
