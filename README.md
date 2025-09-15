@@ -52,13 +52,11 @@ The workflow has three main components:
 
 * **Parameter files:**
 
-  * `ss_pars_2011_241212_2.csv` (species parameters)
-  * `ss_gear_2011_241212.csv` (gear parameters)
-  * `ss_mizer_interaction_241212.csv` (predator–prey interactions)
+  * See code and data folders for relevant files
 
-* **Effort data:**
+* **Historic effort data:**
 
-  * `All_fisheries_effort_array_250521.csv` (time series of relative fishing effort, 1986–2011).
+  * `All_fisheries_effort_array_250526_modhake.csv` (time series of relative fishing effort, 1986–2011).
 
 * **Survey data:**
 
@@ -84,32 +82,29 @@ remotes::install_github("sizespectrum/mizerExperimental")
 remotes::install_github("sizespectrum/mizerMR")
 install.packages(c("tidyverse", "ggplot2", "plotly", "reshape2", "abind"))
 ```
-
 ---
 
 ## Workflow
 
-### 1. Historic Runs (1986–2011)
+### 1. MOdel development, calibration & tuning (2011 baseline)
+
+* Initialize model, tune to steady state
+* Adjust feeding (`gamma`, `h`), reproduction (`erepro`, `R_max`), and recruitment dynamics.
+* Use `tuneParams()` interface and yield curves to test resilience.
+* Ensure realistic predator–prey dynamics and species coexistence.
+*
+### 2. Historic Runs (1986–2011)
 
 * Spin-up to equilibrium with no fishing.
 * Apply reconstructed fishing effort by fleet/gear.
 * Validate against observed biomass and catch data.
 
-### 2. Calibration & Tuning (2011 baseline)
-
-* Adjust feeding (`gamma`, `h`), reproduction (`erepro`, `R_max`), and recruitment dynamics.
-* Use `tuneParams()` interface and yield curves to test resilience.
-* Ensure realistic predator–prey dynamics and species coexistence.
-
 ### 3. Scenario Simulations (2011–2111)
 
-* Construct future effort scenarios:
-
-  * **Status quo**: Continue 2011 fishing levels.
-  * **Reduced salmon fishing**: 50% reduction in salmon sectors, small increases in others, elimination of bycatch.
-  * Additional climate/productivity scenarios (see manuscript).
+* Test future effort scenarios:
+* Run specific scenario simulations
 * Project biomass, yield, and ecosystem indicators.
-* Compare scenarios relative to reference points (50% unexploited SSB).
+* Compare scenarios relative to reference points
 
 ---
 
@@ -117,13 +112,11 @@ install.packages(c("tidyverse", "ggplot2", "plotly", "reshape2", "abind"))
 
 * **Model parameter sets** (`.rds`, `.csv`) at different stages (baseline, tuned, scenario-specific).
 * **Time series outputs** (CSV):
-
   * Biomass, spawning stock biomass (SSB)
   * Yield and catch
   * Predation mortality (M2)
   * Large Fish Indicator (LFI)
 * **Figures and animations**:
-
   * Spectra plots
   * Biomass trajectories
   * Scenario comparison plots
